@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的多巴胺購物清單</title>
+    <!-- 引入 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap" rel="stylesheet">
+    <!-- 引入 Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            /* 多巴胺/果凍/可愛配色 */
+            --bg-color: #fdfbf7;
+            --primary-pink: #ffb7c5;
+            --primary-blue: #bae1ff;
+            --primary-yellow: #ffffba;
+            --primary-mint: #baffc9;
+            --primary-purple: #e0bbe4;
+            --text-color: #555;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --border-radius: 20px;
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 10% 20%, var(--primary-pink) 0%, transparent 20%),
+                              radial-gradient(circle at 90% 80%, var(--primary-blue) 0%, transparent 20%);
+            background-attachment: fixed;
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* 佈局容器 */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding-bottom: 80px;
+        }
+
+        /* 頂部導航列 */
+        header {
+            background: var(--glass-bg);
+            backdrop-filter: blur(8px);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid #fff;
+        }
+
+        .total-section h2 {
+            margin: 0;
+            color: #ff8b94;
+            font-size: 1.5rem;
+        }
+
+        .total-amount {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #555;
+        }
+
+        /* 右上角控制區 */
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* 國旗切換按鈕 */
+        .currency-flags {
+            display: flex;
+            gap: 8px;
+        }
+
+        .flag-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            opacity: 0.6;
+            padding: 0;
+            background: none;
+        }
+
+        .flag-btn.active {
+            opacity: 1;
+            border-color: var(--primary-purple);
+            transform: scale(1.1);
+            box-shadow: 0 0 10px var(--primary-purple);
+        }
+
+        .flag-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .rate-update-btn {
+            background: var(--primary-mint);
+            border: none;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.3s;
+        }
+        
+        .rate-update-btn:hover {
+            transform: rotate(180deg);
+            background: #98fb98;
+        }
+
+        /* 互動按鈕通用樣式 */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 30px;
+            font-family: 'Zen Maru Gothic', sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-add {
+            background-color: var(--primary-blue);
+            color: #fff;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 1.1rem;
+        }
+
+        .btn-save { background-color: var(--primary-mint); color: #555; }
+        .btn-cancel { background-color: var(--primary-pink); color: #fff; }
+        
+        /* 輸入表單區域 (預設隱藏) */
+        #input-area {
+            display: none;
+            background: #fff;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            animation: slideDown 0.4s ease-out;
+            border: 3px solid var(--primary-yellow);
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #888; }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #eee;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+        }
+
+        .price-group {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 10px;
+        }
+
+        /* 檔案上傳美化 */
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-upload-label {
+            display: block;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            border: 2px dashed #ccc;
+            color: #888;
+        }
+
+        /* 商品列表 */
+        .item-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .item-card {
+            background: #fff;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 40px 100px 1fr auto;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid white;
+        }
+
+        .item-card:hover {
+            transform: scale(1.01);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+        }
+
+        /* 勾選後的狀態 */
+        .item-card.checked {
+            opacity: 0.6;
+            background: #f9f9f9;
+            order: 999; /* 置底 */
+        }
+        
+        .item-card.checked .item-name {
+            text-decoration: line-through;
+            color: #aaa;
+        }
+
+        /* 自訂 Checkbox */
+        .custom-checkbox {
+            width: 25px;
+            height: 25px;
+            border: 2px solid var(--primary-blue);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .custom-checkbox.active {
+            background: var(--primary-blue);
+        }
+        
+        .custom-checkbox.active::after {
+            content: '✔';
+            color: white;
+            font-size: 14px;
+        }
+
+        /* 商品圖片 */
+        .item-img {
+            width: 80px;
+            height: 80px;
+            border-radius: 12px;
+            object-fit: cover;
+            background: #eee;
+            cursor: pointer; /* 點擊放大 */
+        }
+
+        .item-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .item-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            color: #444;
+        }
+
+        .item-meta {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 3px;
+        }
+
+        .item-price {
+            color: #ff8b94;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .item-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .action-btn.edit { color: var(--primary-blue); }
+        .action-btn.edit:hover { background: #e6f7ff; }
+        .action-btn.delete { color: #ff8b94; }
+        .action-btn.delete:hover { background: #fff0f1; }
+
+        /* 圖片放大 Modal */
+        #img-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #img-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255,255,255,0.2);
+            width: 300px; /* 指定尺寸 */
+        }
+
+        /* 手機版適配 */
+        @media (max-width: 600px) {
+            .item-card {
+                grid-template-columns: 40px 1fr auto;
+                grid-template-rows: auto auto;
+            }
+            .item-img {
+                grid-row: 1 / 3;
+                width: 60px;
+                height: 60px;
+            }
+            .item-details {
+                grid-column: 2 / 3;
+            }
+            .item-actions {
+                grid-column: 3;
+                grid-row: 1 / 3;
+                justify-content: center;
+            }
+            .custom-checkbox {
+                grid-row: 1 / 3;
+            }
+            header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            .controls {
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="total-section">
+            <h2>購物清單</h2>
+            <div class="total-amount" id="global-total">Total: $0</div>
+        </div>
+        
+        <div class="controls">
+            <!-- 國旗切換 (TW, JP, KR) -->
+            <div class="currency-flags">
+                <button class="flag-btn active" data-currency="TWD" onclick="changeGlobalCurrency('TWD')">
+                    <img src="https://flagcdn.com/tw.svg" alt="TWD">
+                </button>
+                <button class="flag-btn" data-currency="JPY" onclick="changeGlobalCurrency('JPY')">
+                    <img src="https://flagcdn.com/jp.svg" alt="JPY">
+                </button>
+                <button class="flag-btn" data-currency="KRW" onclick="changeGlobalCurrency('KRW')">
+                    <img src="https://flagcdn.com/kr.svg" alt="KRW">
+                </button>
+            </div>
+            <!-- 更新匯率按鈕 -->
+            <button class="rate-update-btn" onclick="updateExchangeRates()" title="更新匯率">
+                ↻
+            </button>
+        </div>
+
+        <button class="btn btn-add" onclick="showInputArea()">＋ 新增待買項目</button>
+    </header>
+
+    <!-- 輸入區塊 -->
+    <div id="input-area">
+        <h3 id="form-title" style="color:var(--primary-purple); margin-top:0;">新增商品</h3>
+        <input type="hidden" id="edit-id"> <!-- 儲存編輯時的ID -->
+
+        <div class="form-group">
+            <label>商品圖片 (會自動壓縮)</label>
+            <div class="file-upload">
+                <label for="item-image" class="file-upload-label" id="file-label">點擊上傳圖片</label>
+                <input type="file" id="item-image" accept="image/*" style="display: none;" onchange="handleImageUpload(this)">
+            </div>
+            <input type="hidden" id="image-base64">
+            <img id="preview-img" style="max-width: 100px; margin-top: 10px; border-radius: 10px; display: none;">
+        </div>
+
+        <div class="form-group">
+            <label>商品名稱</label>
+            <input type="text" id="item-name" placeholder="例如：可愛貼紙">
+        </div>
+
+        <div class="form-group">
+            <div style="display: flex; gap: 10px;">
+                <div style="flex:1;">
+                    <label>數量</label>
+                    <select id="item-qty">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                    </select>
+                </div>
+                <div style="flex:2;">
+                    <label>單價 (正數)</label>
+                    <div class="price-group">
+                        <input type="number" id="item-price" min="0" placeholder="0">
+                        <select id="item-currency">
+                            <option value="TWD">🇹🇼 台幣</option>
+                            <option value="JPY">🇯🇵 日圓</option>
+                            <option value="KRW">🇰🇷 韓幣</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>備註 (規格、顏色)</label>
+            <textarea id="item-note" rows="2" placeholder="粉紅色, M號"></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn btn-cancel" onclick="hideInputArea()">取消</button>
+            <button class="btn btn-save" onclick="saveItem()">儲存</button>
+        </div>
+    </div>
+
+    <!-- 列表清單 -->
+    <div id="shopping-list" class="item-list">
+        <!-- 透過 JS 動態生成 -->
+    </div>
+</div>
+
+<!-- 圖片放大檢視 -->
+<div id="img-modal" onclick="this.style.display='none'">
+    <img id="big-img" src="">
+</div>
+
+<script>
+    // ==========================================
+    // 1. Firebase 設定 (請填入你的設定!)
+    // ==========================================
+    const firebaseConfig = {
+  apiKey: "AIzaSyA26-8C2xH4arDRQwuAsnqsyoAtuHl4ma8",
+  authDomain: "shopping-fire-aa87a.firebaseapp.com",
+  projectId: "shopping-fire-aa87a",
+  storageBucket: "shopping-fire-aa87a.firebasestorage.app",
+  messagingSenderId: "377836167896",
+  appId: "1:377836167896:web:4da1ee530c6b19c596adad"
+    };
+
+    // 初始化 Firebase
+    try {
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        console.log("Firebase initialized");
+    } catch (e) {
+        console.error("Firebase 初始化失敗，請檢查 Config", e);
+        alert("請編輯 index.html 填入正確的 Firebase Config 才能使用資料庫功能！");
+    }
+
+    // ==========================================
+    // 2. 變數與狀態
+    // ==========================================
+    let globalCurrency = 'TWD';
+    let exchangeRates = {
+        TWD: 1,
+        JPY: 4.6, // 1 TWD = 4.6 JPY (預設值，會被 API 覆蓋)
+        KRW: 41.5 // 1 TWD = 41.5 KRW
+    };
+    
+    // 用於顯示的符號
+    const currencySymbols = { TWD: 'NT$', JPY: '¥', KRW: '₩' };
+
+    // ==========================================
+    // 3. 核心功能
+    // ==========================================
+
+    // 監聽資料庫變動 (Real-time Sync)
+    function subscribeToData() {
+        if (!firebase.apps.length) return;
+        const db = firebase.firestore();
+        
+        db.collection("items").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+            const listContainer = document.getElementById('shopping-list');
+            listContainer.innerHTML = ''; // 清空目前顯示
+            
+            let items = [];
+            snapshot.forEach(doc => {
+                items.push({ id: doc.id, ...doc.data() });
+            });
+
+            // 排序邏輯：未勾選在前，已勾選在後 (透過 CSS order 也可，但 JS 算總額方便)
+            // 這裡我們直接渲染，利用 CSS order: 999 讓 checked 項目沉底
+            
+            let total = 0;
+
+            items.forEach(item => {
+                renderItem(item);
+                // 計算總額 (只計算未勾選的？通常清單算全部，這裡算全部)
+                total += convertPrice(item.price * item.qty, item.currency, globalCurrency);
+            });
+
+            updateTotalDisplay(total);
+        });
+    }
+
+    // 渲染單一商品
+    function renderItem(item) {
+        const listContainer = document.getElementById('shopping-list');
+        const card = document.createElement('div');
+        card.className = `item-card ${item.checked ? 'checked' : ''}`;
+        card.id = `card-${item.id}`;
+
+        // 轉換價格顯示
+        const displayedPrice = convertPrice(item.price, item.currency, globalCurrency);
+        const formattedPrice = formatNumber(displayedPrice);
+        const symbol = currencySymbols[globalCurrency];
+
+        // 圖片處理
+        const imgSrc = item.image || 'https://via.placeholder.com/80?text=No+Img';
+
+        card.innerHTML = `
+            <div class="custom-checkbox ${item.checked ? 'active' : ''}" onclick="toggleCheck('${item.id}', ${!item.checked})"></div>
+            
+            <img src="${imgSrc}" class="item-img" onclick="showBigImage('${imgSrc}')" alt="商品圖">
+            
+            <div class="item-details">
+                <div class="item-name">${escapeHtml(item.name)} <span style="font-size:0.8em; color:#999;">x${item.qty}</span></div>
+                <div class="item-meta">${escapeHtml(item.note)}</div>
+                <div class="item-price">${symbol} ${formattedPrice}</div>
+                <div style="font-size: 0.75rem; color: #ccc;">原價: ${item.currency} ${formatNumber(item.price)}</div>
+            </div>
+
+            <div class="item-actions">
+                <button class="action-btn edit" onclick="editItem('${item.id}')">✎</button>
+                <button class="action-btn delete" onclick="deleteItem('${item.id}')">🗑</button>
+            </div>
+        `;
+        
+        listContainer.appendChild(card);
+    }
+
+    // 轉換匯率計算
+    function convertPrice(amount, fromCurrency, toCurrency) {
+        // 先轉回 TWD (Base)
+        let amountInTWD = amount;
+        if (fromCurrency !== 'TWD') {
+            amountInTWD = amount / exchangeRates[fromCurrency]; // 例如 1000 JPY / 4.6 = 217 TWD
+        }
+
+        // 再轉成 目標幣值
+        let finalAmount = amountInTWD;
+        if (toCurrency !== 'TWD') {
+            finalAmount = amountInTWD * exchangeRates[toCurrency];
+        }
+
+        return Math.round(finalAmount);
+    }
+
+    function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    function updateTotalDisplay(amount) {
+        const symbol = currencySymbols[globalCurrency];
+        document.getElementById('global-total').innerText = `Total: ${symbol} ${formatNumber(amount)}`;
+    }
+
+    // ==========================================
+    // 4. 使用者互動操作
+    // ==========================================
+
+    function showInputArea() {
+        document.getElementById('input-area').style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        resetForm();
+    }
+
+    function hideInputArea() {
+        document.getElementById('input-area').style.display = 'none';
+        resetForm();
+    }
+
+    function changeGlobalCurrency(currency) {
+        globalCurrency = currency;
+        // 更新按鈕樣式
+        document.querySelectorAll('.flag-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`.flag-btn[data-currency="${currency}"]`).classList.add('active');
+        
+        // 重新渲染列表以更新價格 (其實 Firestore onSnapshot 會重繪，但這裡手動觸發一次較快)
+        subscribeToData(); 
+    }
+
+    // 取得最新匯率 (使用免費 API)
+    async function updateExchangeRates() {
+        const btn = document.querySelector('.rate-update-btn');
+        btn.style.transform = "rotate(360deg)"; // 轉一下
+        
+        try {
+            // 以 TWD 為基準
+            const response = await fetch('https://api.exchangerate-api.com/v4/latest/TWD');
+            const data = await response.json();
+            
+            // 更新匯率表
+            exchangeRates.TWD = 1;
+            exchangeRates.JPY = data.rates.JPY;
+            exchangeRates.KRW = data.rates.KRW;
+            
+            alert(`匯率已更新！\n1 TWD = ${exchangeRates.JPY} JPY\n1 TWD = ${exchangeRates.KRW} KRW`);
+            subscribeToData(); // 重新計算價格
+        } catch (error) {
+            console.error("匯率更新失敗", error);
+            alert("匯率更新失敗，將使用預設匯率。");
+        }
+    }
+
+    // 圖片處理 (壓縮與 Base64)
+    function handleImageUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = function() {
+                // 創建 canvas 壓縮圖片
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // 設定最大寬度 300px
+                const maxWidth = 300;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height = height * (maxWidth / width);
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7); // 0.7 品質
+                document.getElementById('image-base64').value = compressedBase64;
+                
+                // 預覽
+                const preview = document.getElementById('preview-img');
+                preview.src = compressedBase64;
+                preview.style.display = 'block';
+                document.getElementById('file-label').innerText = "圖片已選擇";
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function showBigImage(src) {
+        const modal = document.getElementById('img-modal');
+        const img = document.getElementById('big-img');
+        img.src = src;
+        modal.style.display = 'flex';
+    }
+
+    // ==========================================
+    // 5. CRUD 操作 (Firestore)
+    // ==========================================
+
+    function saveItem() {
+        const db = firebase.firestore();
+        const id = document.getElementById('edit-id').value;
+        const name = document.getElementById('item-name').value;
+        const qty = parseInt(document.getElementById('item-qty').value);
+        const price = parseInt(document.getElementById('item-price').value);
+        const currency = document.getElementById('item-currency').value;
+        const note = document.getElementById('item-note').value;
+        const image = document.getElementById('image-base64').value;
+
+        if (!name || isNaN(price) || price < 0) {
+            alert("請填寫正確的商品名稱與價格");
+            return;
+        }
+
+        const data = {
+            name, qty, price, currency, note, image,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (id) {
+            // 更新模式
+            db.collection("items").doc(id).update(data)
+                .then(() => hideInputArea())
+                .catch(err => alert("更新失敗: " + err));
+        } else {
+            // 新增模式
+            data.checked = false;
+            data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            db.collection("items").add(data)
+                .then(() => {
+                    hideInputArea();
+                    // 新增後會置頂 (因為有 scroll To Top 且 orderBy desc)
+                    window.scrollTo(0,0);
+                })
+                .catch(err => alert("新增失敗: " + err));
+        }
+    }
+
+    function deleteItem(id) {
+        if(confirm("確定要刪除這個項目嗎？")) {
+            const db = firebase.firestore();
+            db.collection("items").doc(id).delete();
+        }
+    }
+
+    function toggleCheck(id, newStatus) {
+        const db = firebase.firestore();
+        db.collection("items").doc(id).update({ checked: newStatus });
+    }
+
+    function editItem(id) {
+        // 從目前的 DOM 中獲取資料太慢，直接從 Firestore 抓最新資料
+        // 但為了流暢度，我們也可以從當前的 local array 找 (這裡簡化，直接從 HTML 逆推或用全域變數存資料)
+        // 這裡我們直接查資料庫單筆
+        const db = firebase.firestore();
+        db.collection("items").doc(id).get().then(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                document.getElementById('edit-id').value = doc.id;
+                document.getElementById('item-name').value = data.name;
+                document.getElementById('item-qty').value = data.qty;
+                document.getElementById('item-price').value = data.price;
+                document.getElementById('item-currency').value = data.currency;
+                document.getElementById('item-note').value = data.note;
+                
+                if (data.image) {
+                    document.getElementById('image-base64').value = data.image;
+                    document.getElementById('preview-img').src = data.image;
+                    document.getElementById('preview-img').style.display = 'block';
+                    document.getElementById('file-label').innerText = "保留舊圖 (可點擊更換)";
+                }
+
+                document.getElementById('form-title').innerText = "編輯商品";
+                showInputArea();
+            }
+        });
+    }
+
+    function resetForm() {
+        document.getElementById('edit-id').value = '';
+        document.getElementById('item-name').value = '';
+        document.getElementById('item-qty').value = '1';
+        document.getElementById('item-price').value = '';
+        document.getElementById('item-currency').value = 'TWD';
+        document.getElementById('item-note').value = '';
+        document.getElementById('item-image').value = '';
+        document.getElementById('image-base64').value = '';
+        document.getElementById('preview-img').style.display = 'none';
+        document.getElementById('file-label').innerText = "點擊上傳圖片";
+        document.getElementById('form-title').innerText = "新增商品";
+    }
+
+    function escapeHtml(text) {
+        if (!text) return "";
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // 啟動
+    window.onload = function() {
+        if(firebase.apps.length) {
+            subscribeToData();
+            updateExchangeRates(); // 初始更新一次匯率
+        }
+    }
+
+</script>
+
+</body>
+</html>
